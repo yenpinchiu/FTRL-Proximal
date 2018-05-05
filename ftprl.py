@@ -1,6 +1,6 @@
-from math import log, sqrt
+from math import sqrt
 from dummy_data_generator import Dummy_Data
-from utils import sigmoid
+from utils import sigmoid, logloss
 
 class FTPRL:
     def __init__(self, alpha = 0.1, beta = 0.1, l1 = 0.1, l2 = 0.1):
@@ -23,8 +23,6 @@ class FTPRL:
         w = {}
         w_bias = 0.0
         for f_name in features:
-            f_value = features[f_name]
-
             if f_name not in self._z:
                 self._z.update({f_name: 0.0})
 
@@ -34,26 +32,17 @@ class FTPRL:
             zx = self._z[f_name]
             nx = self._n[f_name]
 
-            if zx > self._l1 or zx < -self._l1:
-                if zx > self._l1:
-                    wx = -(zx - self._l1)
-                else:
-                    wx = -(zx + self._l1)
-
-                wx /= (((self._beta + sqrt(nx)) / self._alpha) + self._l2)
-                
-                w.update({f_name: f_value})
-            else:
-                # zx不夠大,被l1 regulize掉
+            if abs(zx) < self._l1:
+                # zx不夠大,被l1 truncate掉
                 pass
-
-        if self._z_bias > self._l1 or self._z_bias < -self._l1:
-            if self._z_bias > self._l1:
-                w_bias = -(self._z_bias - self._l1)
             else:
-                w_bias = -(self._z_bias + self._l1)
+                wx = (zx - (1 if zx >= 0 else -1) * self._l1) / (-((self._beta + sqrt(nx)) / self._alpha) + self._l2)
+                w.update({f_name: wx})
 
-            w_bias /= (((self._beta + sqrt(self._n_bias)) / self._alpha) + self._l2)
+        if abs(self._z_bias) < self._l1:
+            pass
+        else:
+            w_bias = (self._z_bias - (1 if self._z_bias >= 0 else -1) * self._l1) / (-((self._beta + sqrt(self._n_bias)) / self._alpha) + self._l2)
 
         wTx = 0.0
         for f_name in features:
@@ -66,7 +55,7 @@ class FTPRL:
 
         p = sigmoid(wTx)
 
-        if return_w is True:
+        if return_w:
             return p, w, w_bias
         else:
             return p
@@ -78,22 +67,18 @@ class FTPRL:
         for f_name in features:
             f_value = features[f_name]
 
-            gradient = (p - y) * f_value
+            gradient = (p - label) * f_value
             gradient_2 = gradient * gradient
-
             sigma = (sqrt(self._n[f_name] + gradient_2) - sqrt(self._n[f_name])) / self._alpha
-            if f_name in w:
-                wx = w[f_name]
-            else:
-                wx = 0.0
 
-            self._z[f_name] += (gradient - (sigma * wx))
+            self._z[f_name] += gradient - sigma * (w[f_name] if f_name in w else 0.0)
             self._n[f_name] += gradient_2
 
-        gradient = p - y
+        gradient = p - label
         gradient_2 = gradient * gradient
         sigma = (sqrt(self._n_bias + gradient_2) - sqrt(self._n_bias)) / self._alpha
-        self._z_bias += gradient - (sigma * w_bias)
+
+        self._z_bias += gradient - sigma * w_bias
         self._n_bias += gradient_2
 
         return  p
@@ -102,23 +87,14 @@ if __name__ == "__main__":
     ftprl = FTPRL()
     dummy_data = Dummy_Data()
 
-    logloss = 0.0
-    update_count = 0
-    for i in range(0, 1000):
+    loss = 0.0
+    iter_num = 0
+    for i in range(0, 1000000):
         x, y = dummy_data.generate_data()
         p = ftprl.update(x, y)
         
-        if y == 1:
-            logloss -= log(p)
-        else:
-            logloss -= log(1 - p)
+        loss += logloss(y, p)
+        iter_num += 1
 
-        update_count += 1
-
-        if update_count == 100:
-            print(logloss/update_count)
-            logloss = 0
-            update_count = 0
-
-
-        
+        if iter_num % 1000 == 0:
+            print("iter:{} logloss: {}".format(iter_num, loss/iter_num))
