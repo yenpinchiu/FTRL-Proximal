@@ -2,7 +2,7 @@ import random
 from utils import sigmoid
 
 class Dummy_Data:
-    def __init__(self, categorical = 5, numerical = 0, feature_range = 1, weight_range = 1, cate_chance = 0.1):
+    def __init__(self, categorical = 20, numerical = 2, feature_range = 1, weight_range = 100, cate_chance = 0.2):
         if categorical < 0 or numerical < 0 or feature_range < 0 or weight_range < 0:
             raise Exception("Argument Error: Negative Argument")
         
@@ -17,6 +17,7 @@ class Dummy_Data:
 
         self._dummy_cate_name = "categorical_{}"
         self._dummy_nume_name = "numerical_{}"
+
 
         for i in range(0, self._categorical):
             self._w.update({self._dummy_cate_name.format(i): random.uniform(-self._weight_range, self._weight_range)})
@@ -46,7 +47,7 @@ class Dummy_Data:
         p = sigmoid(wTx)
 
         dummy_y = 0
-        if random.uniform(0, 1) <= p/10:
+        if random.uniform(0, 1) <= p:
             dummy_y = 1
 
         return dummy_x, dummy_y
